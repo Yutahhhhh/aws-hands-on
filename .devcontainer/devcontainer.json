@@ -1,0 +1,31 @@
+{
+  "name": "Hono CRUD App",
+  "dockerComposeFile": "../docker-compose.dev.yml",
+  "service": "backend",
+  "workspaceFolder": "/workspace/backend",
+  "shutdownAction": "stopCompose",
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "GitHub.copilot",
+        "GitHub.copilot-chat",
+        "saoudrizwan.claude-dev",
+        "ms-vscode.vscode-typescript-next",
+        "esbenp.prettier-vscode",
+        "ms-vscode.vscode-eslint",
+        "humao.rest-client",
+        "eamodio.gitlens"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "typescript.preferences.includePackageJsonAutoImports": "on"
+      }
+    }
+  },
+  "forwardPorts": [
+    3000,
+    5432
+  ],
+  "postCreateCommand": "pnpm install && echo 'Setup complete!'"
+}

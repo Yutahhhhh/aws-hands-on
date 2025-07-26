@@ -1,0 +1,16 @@
+FROM node:20-alpine
+
+WORKDIR /workspace/backend
+
+RUN apk add --no-cache postgresql-client curl
+
+RUN npm install -g pnpm
+
+COPY package.json pnpm-lock.yaml* ./
+RUN pnpm install
+
+COPY . .
+
+EXPOSE 3000
+
+CMD ["tail", "-f", "/dev/null"]
