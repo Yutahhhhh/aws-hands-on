@@ -1,0 +1,26 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Environment files
+.env*
+!.env.example
+
+# Development files
+*.md
+.vscode/
+.devcontainer/
+
+# Docker files
+docker-compose*.yml
+Dockerfile.dev
+
+# Build outputs
+drizzle/
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp

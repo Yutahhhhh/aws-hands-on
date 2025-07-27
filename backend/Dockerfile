@@ -16,6 +16,9 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# ヘルスチェック用にcurlを追加
+RUN apk add --no-cache postgresql-client curl
+
 # pnpmをインストール
 RUN npm install -g pnpm
 
@@ -32,8 +35,8 @@ RUN chmod +x entrypoint.sh
 
 USER nodejs
 
-HEALTHCHECK --interval=30s --timeout=3s --start-period=40s --retries=3 \
-  CMD node -e "require('http').get('http://0.0.0.0:3000/health', (r) => r.statusCode === 200 ? process.exit(0) : process.exit(1))"
+HEALTHCHECK --interval=30s --timeout=5s --start-period=40s --retries=3 \
+  CMD curl -f http://localhost:3000/health || exit 1
 
 EXPOSE 3000
 
