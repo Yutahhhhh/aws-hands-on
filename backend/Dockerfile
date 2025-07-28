@@ -9,6 +9,7 @@ COPY package.json pnpm-lock.yaml ./
 RUN pnpm install
 
 COPY tsconfig.json ./
+COPY drizzle.config.ts ./
 COPY src ./src
 RUN pnpm build
 
@@ -25,12 +26,15 @@ RUN npm install -g pnpm
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod && pnpm store prune
 
-COPY --from=builder /app/dist ./dist
-
 RUN addgroup -g 1001 -S nodejs && \
     adduser -S nodejs -u 1001
 
+COPY --from=builder /app/dist ./dist
+COPY --chown=nodejs:nodejs drizzle.config.ts ./
+COPY --chown=nodejs:nodejs drizzle ./drizzle
+COPY --chown=nodejs:nodejs src ./src
 COPY --chown=nodejs:nodejs entrypoint.sh ./
+
 RUN chmod +x entrypoint.sh
 
 USER nodejs
