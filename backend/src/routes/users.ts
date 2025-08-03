@@ -10,6 +10,7 @@ userRoutes.get("/", async (c) => {
     const allUsers = await db.select().from(users);
     return c.json({ users: allUsers });
   } catch (error) {
+    console.error("Error fetching users:", error);
     return c.json({ error: "Failed to fetch users" }, 500);
   }
 });

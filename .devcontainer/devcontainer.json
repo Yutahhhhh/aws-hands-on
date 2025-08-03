@@ -1,8 +1,8 @@
 {
-  "name": "Hono CRUD App",
+  "name": "Full Stack Development (Backend + Frontend)",
   "dockerComposeFile": "../docker-compose.dev.yml",
-  "service": "backend",
-  "workspaceFolder": "/workspace/backend",
+  "service": "frontend",
+  "workspaceFolder": "/workspace",
   "shutdownAction": "stopCompose",
   "customizations": {
     "vscode": {
@@ -14,18 +14,50 @@
         "esbenp.prettier-vscode",
         "ms-vscode.vscode-eslint",
         "humao.rest-client",
-        "eamodio.gitlens"
+        "eamodio.gitlens",
+        "bradlc.vscode-tailwindcss",
+        "formulahendry.auto-rename-tag",
+        "christian-kohler.path-intellisense",
+        "ms-vscode.vscode-json",
+        "redhat.vscode-yaml",
+        "redhat.vscode-xml"
       ],
       "settings": {
         "editor.formatOnSave": true,
         "editor.defaultFormatter": "esbenp.prettier-vscode",
-        "typescript.preferences.includePackageJsonAutoImports": "on"
+        "typescript.preferences.includePackageJsonAutoImports": "on",
+        "typescript.preferences.importModuleSpecifier": "relative",
+        "tailwindCSS.experimental.classRegex": [
+          [
+            "cva\\(([^)]*)\\)",
+            "[\"'`]([^\"'`]*).*?[\"'`]"
+          ],
+          [
+            "cx\\(([^)]*)\\)",
+            "(?:'|\"|`)([^']*)(?:'|\"|`)"
+          ]
+        ]
       }
     }
   },
   "forwardPorts": [
     3000,
+    5173,
     5432
   ],
-  "postCreateCommand": "pnpm install && echo 'Setup complete!'"
+  "portsAttributes": {
+    "3000": {
+      "label": "Backend API Server",
+      "onAutoForward": "notify"
+    },
+    "5173": {
+      "label": "Frontend Dev Server",
+      "onAutoForward": "notify"
+    },
+    "5432": {
+      "label": "PostgreSQL Database",
+      "onAutoForward": "silent"
+    }
+  },
+  "postCreateCommand": "cd backend && pnpm install && cd ../frontend && npm install -g pnpm && pnpm install && echo 'Full stack setup complete!'"
 }

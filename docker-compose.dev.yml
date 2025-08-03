@@ -23,6 +23,20 @@ services:
       - db
     working_dir: /workspace/backend
 
+  frontend:
+    image: node:20-alpine
+    ports:
+      - "5173:5173"
+    volumes:
+      - .:/workspace:cached
+      - frontend_node_modules:/workspace/frontend/node_modules
+    working_dir: /workspace/frontend
+    command: sh -c "npm install -g pnpm && tail -f /dev/null"
+    environment:
+      - NODE_ENV=development
+      - VITE_API_URL=http://localhost:3000
+
 volumes:
   postgres_data:
   node_modules:
+  frontend_node_modules:
