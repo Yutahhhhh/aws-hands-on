@@ -142,3 +142,73 @@ docker tag my-app:latest 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/my-ap
 # 4. プッシュ
 docker push 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/my-app-repo:latest
 ```
+
+## フロントエンドのデプロイ (S3 + CloudFront)
+
+フロントエンドアプリケーションをS3とCloudFrontにデプロイする手順です。
+
+### 前提条件
+
+- AWS CLIがインストールされ、適切な権限で設定されていること
+- S3バケットとCloudFrontディストリビューションが作成済みであること
+- 以下の環境変数が設定されていること：
+  - `S3_BUCKET_NAME`: デプロイ先のS3バケット名
+  - `CLOUDFRONT_DISTRIBUTION_ID`: CloudFrontディストリビューションID
+
+### 環境変数の設定
+
+デプロイスクリプトを実行する前に、必要な環境変数を設定してください：
+
+```bash
+export S3_BUCKET_NAME="your-frontend-bucket-name"
+export CLOUDFRONT_DISTRIBUTION_ID="E1234567890ABC"
+```
+
+### デプロイスクリプトの実行権限設定
+
+初回実行時は、スクリプトに実行権限を付与する必要があります：
+
+```bash
+chmod +x scripts/deploy-frontend.sh
+```
+
+### デプロイの実行
+
+環境変数を設定し、実行権限を付与した後、以下のコマンドでデプロイを実行します：
+
+```bash
+./scripts/deploy-frontend.sh
+```
+
+### デプロイスクリプトの動作
+
+`scripts/deploy-frontend.sh`は以下の処理を自動で実行します：
+
+1. **環境変数の確認**: `S3_BUCKET_NAME`と`CLOUDFRONT_DISTRIBUTION_ID`が設定されているかチェック
+2. **フロントエンドのビルド**: `npm run build`でプロダクション用ビルドを実行
+3. **S3へのアップロード**: 
+   - 静的ファイル（CSS、JS等）は長期キャッシュ設定でアップロード
+   - `index.html`とJSONファイルは短期キャッシュ設定でアップロード
+4. **CloudFrontキャッシュの無効化**: 全てのパス（`/*`）のキャッシュを無効化
+
+### 実行例
+
+```bash
+# 環境変数の設定
+export S3_BUCKET_NAME="my-frontend-app-bucket"
+export CLOUDFRONT_DISTRIBUTION_ID="E1A2B3C4D5E6F7"
+
+# 実行権限の付与（初回のみ）
+chmod +x scripts/deploy-frontend.sh
+
+# デプロイの実行
+./scripts/deploy-frontend.sh
+```
+
+### 注意事項
+
+- デプロイ前に、バックエンドのCORS設定でCloudFrontドメインが許可されていることを確認してください
+- CloudFrontのキャッシュ無効化には数分かかる場合があります
+- S3バケットは静的ウェブサイトホスティングが有効になっている必要があります
+
+※AIに書かせています
