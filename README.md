@@ -16,6 +16,7 @@ VS Codeでプロジェクトを開き、"Reopen in Container"を選択するこ�
 ## 本番用コンテナのビルドと実行 (ECR向け)
 
 ECR (Elastic Container Registry) にプッシュするための本番用コンテナイメージをビルドし、ローカルで動作確認する手順です。
+DB接続周りの環境変数はシークレットマネージャーを利用する想定です。
 
 ### 1. イメージのビルド
 
@@ -25,8 +26,26 @@ ECR (Elastic Container Registry) にプッシュするための本番用コン�
 cd backend
 docker build -t hono-api:latest .
 
-# Apple Siliconの場合でECR対応
-DOCKER_BUILDKIT=0 docker build --platform linux/amd64 -t xxxxxx.dkr.ecr.ap-northeast-1.amazonaws.com/xxxxx:latest .
+# Apple Siliconの場合でECR対応（CORS設定あり）
+DOCKER_BUILDKIT=0 docker build --platform linux/amd64 -t xxxxxx.dkr.ecr.ap-northeast-1.amazonaws.com/xxxxx:latest \
+  --build-arg ALLOWED_ORIGINS=https://your-cloudfront-domain.cloudfront.net .
+```
+
+### CORS設定について
+
+フロントエンドをCloudFrontにデプロイした際のCORSエラーを防ぐため、バックエンドのビルド時にCloudFrontドメインを許可する必要があります。
+
+**本番環境でのDockerビルド例:**
+```bash
+cd backend
+docker build -t your-backend-app:latest \
+  --build-arg ALLOWED_ORIGINS=https://d1234567890abc.cloudfront.net .
+```
+
+**複数ドメインを許可する場合:**
+```bash
+docker build -t your-backend-app:latest \
+  --build-arg ALLOWED_ORIGINS=https://d1234567890abc.cloudfront.net,https://your-custom-domain.com .
 ```
 
 ビルドが成功したことを確認します。
@@ -71,4 +90,55 @@ curl http://localhost:3001/health
 
 ```bash
 docker rm -f hono-api-test
+```
+
+## ECSへのデプロイ手順
+
+ECSにアプリケーションをデプロイする際は、以下の順序で実行してください：
+
+### 1. ECRにログイン
+
+```bash
+aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin <YOUR_ACCOUNT_ID>.dkr.ecr.ap-northeast-1.amazonaws.com
+```
+
+### 2. Dockerイメージのビルド
+
+```bash
+cd backend
+docker build -t <YOUR_APP_NAME>:latest --build-arg ALLOWED_ORIGINS=https://<YOUR_CLOUDFRONT_DOMAIN>.cloudfront.net .
+```
+
+### 3. イメージにタグを付与
+
+```bash
+docker tag <YOUR_APP_NAME>:latest <YOUR_ACCOUNT_ID>.dkr.ecr.ap-northeast-1.amazonaws.com/<YOUR_ECR_REPO_NAME>:latest
+```
+
+### 4. ECRにプッシュ
+
+```bash
+docker push <YOUR_ACCOUNT_ID>.dkr.ecr.ap-northeast-1.amazonaws.com/<YOUR_ECR_REPO_NAME>:latest
+```
+
+### 5. ECSサービスの更新
+
+ECSサービスを手動で更新するか、CI/CDパイプラインで自動デプロイします。
+
+**重要**: この順序（ログイン → ビルド → タグ付け → プッシュ）で、最新のコードがECSにデプロイされます。タグ付けを忘れると、古いイメージがデプロイされる可能性があります。
+
+**実行例:**
+```bash
+# 1. ログイン
+aws ecr get-login-password --region ap-northeast-1 | docker login --username AWS --password-stdin 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com
+
+# 2. ビルド
+cd backend
+docker build -t my-app:latest --build-arg ALLOWED_ORIGINS=https://dfwe9xxxxxx.cloudfront.net .
+
+# 3. タグ付け
+docker tag my-app:latest 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/my-app-repo:latest
+
+# 4. プッシュ
+docker push 123456789012.dkr.ecr.ap-northeast-1.amazonaws.com/my-app-repo:latest
 ```

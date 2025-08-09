@@ -11,8 +11,8 @@ export default defineConfig({
     user: process.env.DB_USER || "postgres",
     password: process.env.DB_PASSWORD || "password",
     database: process.env.DB_NAME || "hono_crud",
-    ssl: {
+    ssl: process.env.NODE_ENV === "production" ? {
       rejectUnauthorized: false,
-    },
+    } : undefined,
   },
 });

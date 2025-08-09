@@ -1,6 +1,6 @@
 import { User, NewUser, UpdateUser, ApiResponse } from "@/types/user";
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
+const API_BASE_URL = ""; // 相対パス - 開発環境ではViteプロキシ、本番環境ではCloudFrontプロキシを使用
 
 class ApiError extends Error {
   constructor(public status: number, message: string) {
@@ -21,6 +21,7 @@ async function apiRequest<T>(
       ...options.headers,
     },
     ...options,
+    credentials: "include",
   };
 
   try {
