@@ -17,6 +17,10 @@ FROM node:20-alpine
 
 WORKDIR /app
 
+# ビルド時にCORS設定を受け取る
+ARG ALLOWED_ORIGINS
+ENV ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
+
 # ヘルスチェック用にcurlを追加
 RUN apk add --no-cache postgresql-client curl
 

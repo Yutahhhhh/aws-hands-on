@@ -7,7 +7,6 @@ import { createUser, updateUser, ApiError } from '@/lib/api';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import {
   Dialog,
@@ -20,10 +19,20 @@ import {
 const userSchema = z.object({
   name: z.string().min(1, '名前は必須です').max(100, '名前は100文字以内で入力してください'),
   email: z.string().email('正しいメールアドレスを入力してください'),
-  age: z.coerce.number().min(0, '年齢は0以上で入力してください').max(150, '年齢は150以下で入力してください').optional().or(z.literal('')),
+  age: z.string().optional().refine((val) => {
+    if (!val || val === '') return true;
+    const num = Number(val);
+    return !isNaN(num) && num >= 0 && num <= 150;
+  }, {
+    message: '年齢は0以上150以下の数値で入力してください'
+  }),
 });
 
-type UserFormData = z.infer<typeof userSchema>;
+type UserFormData = {
+  name: string;
+  email: string;
+  age?: string;
+};
 
 interface UserFormProps {
   isOpen: boolean;
@@ -48,7 +57,7 @@ export default function UserForm({ isOpen, onClose, onSuccess, user }: UserFormP
     defaultValues: {
       name: user?.name || '',
       email: user?.email || '',
-      age: user?.age || '',
+      age: user?.age ? String(user.age) : '',
     },
   });
 
@@ -91,7 +100,7 @@ export default function UserForm({ isOpen, onClose, onSuccess, user }: UserFormP
       reset({
         name: user?.name || '',
         email: user?.email || '',
-        age: user?.age || '',
+        age: user?.age ? String(user.age) : '',
       });
       setError(null);
     }

@@ -21,10 +21,13 @@ if (process.env.NODE_ENV === "production") {
   }
 }
 
-const connectionString = `postgresql://${process.env.DB_USER}:${process.env.DB_PASSWORD}@${process.env.DB_HOST}:${process.env.DB_PORT}/${process.env.DB_NAME}`;
-
-// 本番環境でのSSL設定追加
-const client = postgres(connectionString, {
+// URL文字列ではなく個別オプションで接続
+const client = postgres({
+  host: process.env.DB_HOST || 'localhost',
+  port: parseInt(process.env.DB_PORT || '5432'),
+  database: process.env.DB_NAME || 'hono_crud',
+  username: process.env.DB_USER || 'postgres',
+  password: process.env.DB_PASSWORD || 'password',
   ssl:
     process.env.NODE_ENV === "production"
       ? { rejectUnauthorized: false }
