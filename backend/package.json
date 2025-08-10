@@ -17,6 +17,7 @@
   "license": "ISC",
   "dependencies": {
     "@hono/node-server": "^1.17.1",
+    "aws-xray-sdk-core": "^3.10.3",
     "dotenv": "^17.2.1",
     "drizzle-kit": "^0.31.4",
     "drizzle-orm": "^0.44.3",

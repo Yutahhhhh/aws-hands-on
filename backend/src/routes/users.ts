@@ -1,13 +1,16 @@
 import { Hono } from "hono";
 import { eq } from "drizzle-orm";
 import { db, users, NewUser } from "../db";
+import { traceDatabase } from "../middleware/xray";
 
 const userRoutes = new Hono();
 
 // GET /users
 userRoutes.get("/", async (c) => {
   try {
-    const allUsers = await db.select().from(users);
+    const allUsers = await traceDatabase("get-all-users", async () => {
+      return await db.select().from(users);
+    });
     return c.json({ users: allUsers });
   } catch (error) {
     console.error("Error fetching users:", error);
@@ -23,7 +26,9 @@ userRoutes.get("/:id", async (c) => {
       return c.json({ error: "Invalid user ID" }, 400);
     }
 
-    const user = await db.select().from(users).where(eq(users.id, id));
+    const user = await traceDatabase("get-user-by-id", async () => {
+      return await db.select().from(users).where(eq(users.id, id));
+    });
     if (user.length === 0) {
       return c.json({ error: "User not found" }, 404);
     }
@@ -50,7 +55,9 @@ userRoutes.post("/", async (c) => {
       age: age || null,
     };
 
-    const createdUser = await db.insert(users).values(newUser).returning();
+    const createdUser = await traceDatabase("create-user", async () => {
+      return await db.insert(users).values(newUser).returning();
+    });
     return c.json({ user: createdUser[0] }, 201);
   } catch (error: any) {
     if (error.code === "23505") {
@@ -77,11 +84,13 @@ userRoutes.put("/:id", async (c) => {
     if (age !== undefined) updateData.age = age;
     updateData.updatedAt = new Date();
 
-    const updatedUser = await db
-      .update(users)
-      .set(updateData)
-      .where(eq(users.id, id))
-      .returning();
+    const updatedUser = await traceDatabase("update-user", async () => {
+      return await db
+        .update(users)
+        .set(updateData)
+        .where(eq(users.id, id))
+        .returning();
+    });
 
     if (updatedUser.length === 0) {
       return c.json({ error: "User not found" }, 404);
@@ -104,10 +113,12 @@ userRoutes.delete("/:id", async (c) => {
       return c.json({ error: "Invalid user ID" }, 400);
     }
 
-    const deletedUser = await db
-      .delete(users)
-      .where(eq(users.id, id))
-      .returning();
+    const deletedUser = await traceDatabase("delete-user", async () => {
+      return await db
+        .delete(users)
+        .where(eq(users.id, id))
+        .returning();
+    });
 
     if (deletedUser.length === 0) {
       return c.json({ error: "User not found" }, 404);
