@@ -3,3 +3,4 @@ backend/.env
 backend/.env.production
 backend/node_modules
 backend/dist
+frontend/tsconfig.tsbuildinfo

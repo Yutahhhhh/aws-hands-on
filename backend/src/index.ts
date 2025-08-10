@@ -3,10 +3,12 @@ import { serve } from "@hono/node-server";
 import { cors } from "hono/cors";
 import { logger } from "hono/logger";
 import userRoutes from "./routes/users";
+import { xrayMiddleware } from "./middleware/xray";
 import "dotenv/config";
 
 const app = new Hono();
 
+app.use("*", xrayMiddleware());
 app.use("*", logger());
 app.use("*", cors());
 
