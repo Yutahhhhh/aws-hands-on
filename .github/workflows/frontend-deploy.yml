@@ -1,4 +1,4 @@
-name: Frontend Deploy v1.1
+name: Frontend Deploy v1.2
 
 on:
   push:
@@ -55,8 +55,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
-          cache: 'pnpm'
-          cache-dependency-path: frontend/pnpm-lock.yaml
 
       - name: Get pnpm store directory
         shell: bash
@@ -67,13 +65,13 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ env.STORE_PATH }}
-          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/pnpm-lock.yaml') }}
+          key: ${{ runner.os }}-pnpm-store-${{ hashFiles('frontend/package.json') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-store-
 
       - name: Install dependencies
         working-directory: frontend
-        run: pnpm install --frozen-lockfile
+        run: pnpm install
 
       - name: Build application
         working-directory: frontend
