@@ -52,7 +52,7 @@ jobs:
     # needs: test
     runs-on: ubuntu-latest
     outputs:
-      image-tag: ${{ steps.meta.outputs.tags }}
+      image-uri: ${{ steps.image.outputs.uri }}
     steps:
       - uses: actions/checkout@v4
 
@@ -78,6 +78,13 @@ jobs:
           tags: |
             type=ref,event=branch
             type=sha,prefix={{date 'YYYYMMDD'}}-
+
+      - name: Extract single image URI
+        id: image
+        run: |
+          # 最初のタグを取得（通常はsha形式のタグ）
+          IMAGE_URI=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          echo "uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
@@ -114,7 +121,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: ${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-app
-          image: ${{ needs.build-and-push.outputs.image-tag }}
+          image: ${{ needs.build-and-push.outputs.image-uri }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
