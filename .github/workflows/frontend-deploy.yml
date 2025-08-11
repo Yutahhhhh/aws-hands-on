@@ -1,4 +1,4 @@
-name: Frontend Deploy v1.0
+name: Frontend Deploy v1.1
 
 on:
   push:
