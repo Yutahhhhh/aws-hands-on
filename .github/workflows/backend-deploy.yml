@@ -94,16 +94,6 @@ jobs:
             type=sha,prefix={{date 'YYYYMMDD'}}-
             type=ref,event=branch
 
-      - name: Extract single image URI
-        id: image
-        run: |
-          echo "All tags:"
-          echo "${{ steps.meta.outputs.tags }}"
-          # 最初のタグを取得（通常はsha形式のタグ）
-          IMAGE_URI=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
-          echo "Selected IMAGE_URI: ${IMAGE_URI}"
-          echo "uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
-
       - name: Build and push Docker image
         uses: docker/build-push-action@v5
         with:
@@ -113,6 +103,16 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
+
+      - name: Extract single image URI
+        id: image
+        run: |
+          echo "All tags:"
+          echo "${{ steps.meta.outputs.tags }}"
+          # 最初のタグを取得（通常はsha形式のタグ）
+          IMAGE_URI=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          echo "Selected IMAGE_URI: ${IMAGE_URI}"
+          echo "uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
   deploy:
     needs: build-and-push
