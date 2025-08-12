@@ -1,9 +1,11 @@
-name: Backend Deploy v1.0
+name: Backend Deploy
 
 on:
   push:
     branches:
       - develop
+      - staging
+      - main
     paths:
       - 'backend/**'
       - '.github/workflows/backend-deploy.yml'
@@ -12,7 +14,6 @@ on:
 env:
   AWS_REGION: ap-northeast-1
   PROJECT_NAME: ${{ vars.PROJECT_NAME }}
-  ENVIRONMENT: dev
 
 permissions:
   id-token: write
@@ -53,8 +54,22 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image-uri: ${{ steps.image.outputs.uri }}
+      environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
+
+      - name: Set environment based on branch
+        id: set-env
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "staging" ]]; then
+            echo "environment=stg" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -74,7 +89,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-app
+          images: ${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ steps.set-env.outputs.environment }}-app
           tags: |
             type=ref,event=branch
             type=sha,prefix={{date 'YYYYMMDD'}}-
@@ -112,7 +127,7 @@ jobs:
       - name: Get current task definition
         run: |
           aws ecs describe-task-definition \
-            --task-definition ${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-app \
+            --task-definition ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app \
             --query taskDefinition > task-definition.json
 
       - name: Update task definition
@@ -120,13 +135,13 @@ jobs:
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-definition.json
-          container-name: ${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-app
+          container-name: ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app
           image: ${{ needs.build-and-push.outputs.image-uri }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-app-service
-          cluster: ${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-cluster
+          service: ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app-service
+          cluster: ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-cluster
           wait-for-service-stability: true
