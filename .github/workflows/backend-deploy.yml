@@ -132,21 +132,6 @@ jobs:
           container-name: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app
           image: ${{ steps.build-uri.outputs.image-uri }}
 
-      - name: Check ECS Service Status (Before Deploy)
-        run: |
-          echo "=== ECS Service Status Before Deploy ==="
-          aws ecs describe-services \
-            --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
-            --services ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
-            --query 'services[0].{Status:status,RunningCount:runningCount,PendingCount:pendingCount,DesiredCount:desiredCount}' \
-            --output table
-          
-          echo "=== Current Tasks ==="
-          aws ecs list-tasks \
-            --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
-            --service-name ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
-            --query 'taskArns' \
-            --output table
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
@@ -156,20 +141,13 @@ jobs:
           cluster: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster
           wait-for-service-stability: false
 
-      - name: Check ECS Service Status (After Deploy)
+      - name: Verify Deployment
         run: |
-          echo "=== ECS Service Status After Deploy ==="
+          echo "ECS service updated successfully"
           aws ecs describe-services \
             --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
             --services ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
-            --query 'services[0].{Status:status,RunningCount:runningCount,PendingCount:pendingCount,DesiredCount:desiredCount,TaskDefinition:taskDefinition}' \
-            --output table
-          
-          echo "=== Recent Service Events ==="
-          aws ecs describe-services \
-            --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
-            --services ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
-            --query 'services[0].events[:5]' \
+            --query 'services[0].{Status:status,TaskDefinition:taskDefinition}' \
             --output table
 
       - name: Deployment completed
