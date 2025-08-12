@@ -1,56 +1,30 @@
-name: Backend Deploy
+name: Backend Deploy Debug
 
 on:
+  workflow_dispatch:
   push:
     branches:
-      - develop
       - staging
-      - main
-    paths:
-      - 'backend/**'
-      - '.github/workflows/backend-deploy.yml'
-  workflow_dispatch:
 
 env:
   AWS_REGION: ap-northeast-1
   PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+  ENVIRONMENT: stg
 
 permissions:
   id-token: write
   contents: read
 
 jobs:
-  setup:
+  test-build-and-push:
     runs-on: ubuntu-latest
-    outputs:
-      environment: ${{ steps.set-env.outputs.environment }}
-    steps:
-      - name: Set environment based on branch
-        id: set-env
-        run: |
-          if [[ "${{ github.ref_name }}" == "main" ]]; then
-            echo "environment=prod" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == "staging" ]]; then
-            echo "environment=stg" >> $GITHUB_OUTPUT
-          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
-            echo "environment=dev" >> $GITHUB_OUTPUT
-          else
-            echo "environment=dev" >> $GITHUB_OUTPUT
-          fi
-          echo "Set environment to: $(grep environment $GITHUB_OUTPUT | cut -d'=' -f2)"
-
-  build-and-push:
-    needs: setup
-    runs-on: ubuntu-latest
-    outputs:
-      image-uri: ${{ steps.build-image.outputs.image }}
     steps:
       - uses: actions/checkout@v4
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-github-actions
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-github-actions
           role-session-name: github-actions
           aws-region: ${{ env.AWS_REGION }}
 
@@ -58,74 +32,38 @@ jobs:
         id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
 
-      - name: Build, tag, and push image to Amazon ECR
-        id: build-image
-        env:
-          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
-          ECR_REPOSITORY: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app
-          IMAGE_TAG: ${{ github.sha }}
+      - name: Build and push test
         run: |
-          # イメージURIを構築
+          ECR_REGISTRY="${{ steps.login-ecr.outputs.registry }}"
+          ECR_REPOSITORY="${{ env.PROJECT_NAME }}-${{ env.ENVIRONMENT }}-app"
+          IMAGE_TAG="${{ github.sha }}"
           IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
-          echo "Building image: ${IMAGE_URI}"
           
-          # Dockerイメージをビルド
-          cd backend
-          docker build -t ${IMAGE_URI} .
+          echo "ECR_REGISTRY: ${ECR_REGISTRY}"
+          echo "ECR_REPOSITORY: ${ECR_REPOSITORY}"
+          echo "IMAGE_TAG: ${IMAGE_TAG}"
+          echo "IMAGE_URI: ${IMAGE_URI}"
           
-          # ECRにプッシュ
-          docker push ${IMAGE_URI}
-          
-          # アウトプットに設定
-          echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
-          
-          # 確認のため表示
-          echo "Successfully built and pushed: ${IMAGE_URI}"
-          cat $GITHUB_OUTPUT
-
-  deploy:
-    needs: [setup, build-and-push]
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-
-      - name: Debug - Check received values
-        run: |
-          echo "Environment: ${{ needs.setup.outputs.environment }}"
-          echo "Image URI: ${{ needs.build-and-push.outputs.image-uri }}"
-          if [ -z "${{ needs.build-and-push.outputs.image-uri }}" ]; then
-            echo "ERROR: Image URI is empty!"
+          # backendディレクトリの確認
+          if [ -d "backend" ]; then
+            echo "backend directory exists"
+            ls -la backend/
+          else
+            echo "ERROR: backend directory not found!"
             exit 1
           fi
-
-      - name: Configure AWS credentials
-        uses: aws-actions/configure-aws-credentials@v4
-        with:
-          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-github-actions
-          role-session-name: github-actions
-          aws-region: ${{ env.AWS_REGION }}
-
-      - name: Get current task definition
-        run: |
-          aws ecs describe-task-definition \
-            --task-definition ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app \
-            --query taskDefinition > task-definition.json
           
-          echo "Task definition retrieved:"
-          cat task-definition.json | jq '.containerDefinitions[0].name'
-
-      - name: Update task definition
-        id: task-def
-        uses: aws-actions/amazon-ecs-render-task-definition@v1
-        with:
-          task-definition: task-definition.json
-          container-name: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app
-          image: ${{ needs.build-and-push.outputs.image-uri }}
-
-      - name: Deploy to ECS
-        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
-        with:
-          task-definition: ${{ steps.task-def.outputs.task-definition }}
-          service: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service
-          cluster: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster
-          wait-for-service-stability: true
+          # Dockerfileの確認
+          if [ -f "backend/Dockerfile" ]; then
+            echo "Dockerfile exists"
+          else
+            echo "ERROR: backend/Dockerfile not found!"
+            exit 1
+          fi
+          
+          # ビルドとプッシュ
+          cd backend
+          docker build -t ${IMAGE_URI} .
+          docker push ${IMAGE_URI}
+          
+          echo "Successfully pushed: ${IMAGE_URI}"
