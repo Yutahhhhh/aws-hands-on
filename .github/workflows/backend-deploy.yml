@@ -46,7 +46,8 @@ jobs:
     needs: setup
     runs-on: ubuntu-latest
     outputs:
-      image-uri: ${{ steps.build-image.outputs.image }}
+      image-tag: ${{ github.sha }}
+      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
     steps:
       - uses: actions/checkout@v4
 
@@ -95,11 +96,8 @@ jobs:
       - name: Debug - Check received values
         run: |
           echo "Environment: ${{ needs.setup.outputs.environment }}"
-          echo "Image URI: ${{ needs.build-and-push.outputs.image-uri }}"
-          if [ -z "${{ needs.build-and-push.outputs.image-uri }}" ]; then
-            echo "ERROR: Image URI is empty!"
-            exit 1
-          fi
+          echo "Image Tag: ${{ needs.build-and-push.outputs.image-tag }}"
+          echo "ECR Registry: ${{ needs.build-and-push.outputs.ecr-registry }}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -107,6 +105,17 @@ jobs:
           role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-github-actions
           role-session-name: github-actions
           aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Image URI
+        id: build-uri
+        run: |
+          IMAGE_URI="${{ needs.build-and-push.outputs.ecr-registry }}/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app:${{ needs.build-and-push.outputs.image-tag }}"
+          echo "Built Image URI: ${IMAGE_URI}"
+          echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
       - name: Get current task definition
         run: |
@@ -123,7 +132,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app
-          image: ${{ needs.build-and-push.outputs.image-uri }}
+          image: ${{ steps.build-uri.outputs.image-uri }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
@@ -137,4 +146,4 @@ jobs:
         run: |
           echo "✅ Deployment completed successfully!"
           echo "Environment: ${{ needs.setup.outputs.environment }}"
-          echo "Image: ${{ needs.build-and-push.outputs.image-uri }}"
+          echo "Image: ${{ steps.build-uri.outputs.image-uri }}"
