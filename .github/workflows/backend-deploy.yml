@@ -47,7 +47,6 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       image-tag: ${{ github.sha }}
-      ecr-registry: ${{ steps.login-ecr.outputs.registry }}
     steps:
       - uses: actions/checkout@v4
 
@@ -97,7 +96,6 @@ jobs:
         run: |
           echo "Environment: ${{ needs.setup.outputs.environment }}"
           echo "Image Tag: ${{ needs.build-and-push.outputs.image-tag }}"
-          echo "ECR Registry: ${{ needs.build-and-push.outputs.ecr-registry }}"
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -113,7 +111,7 @@ jobs:
       - name: Build Image URI
         id: build-uri
         run: |
-          IMAGE_URI="${{ needs.build-and-push.outputs.ecr-registry }}/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app:${{ needs.build-and-push.outputs.image-tag }}"
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app:${{ needs.build-and-push.outputs.image-tag }}"
           echo "Built Image URI: ${IMAGE_URI}"
           echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
@@ -134,13 +132,45 @@ jobs:
           container-name: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app
           image: ${{ steps.build-uri.outputs.image-uri }}
 
+      - name: Check ECS Service Status (Before Deploy)
+        run: |
+          echo "=== ECS Service Status Before Deploy ==="
+          aws ecs describe-services \
+            --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
+            --services ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
+            --query 'services[0].{Status:status,RunningCount:runningCount,PendingCount:pendingCount,DesiredCount:desiredCount}' \
+            --output table
+          
+          echo "=== Current Tasks ==="
+          aws ecs list-tasks \
+            --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
+            --service-name ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
+            --query 'taskArns' \
+            --output table
+
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
         with:
           task-definition: ${{ steps.task-def.outputs.task-definition }}
           service: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service
           cluster: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster
-          wait-for-service-stability: true
+          wait-for-service-stability: false
+
+      - name: Check ECS Service Status (After Deploy)
+        run: |
+          echo "=== ECS Service Status After Deploy ==="
+          aws ecs describe-services \
+            --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
+            --services ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
+            --query 'services[0].{Status:status,RunningCount:runningCount,PendingCount:pendingCount,DesiredCount:desiredCount,TaskDefinition:taskDefinition}' \
+            --output table
+          
+          echo "=== Recent Service Events ==="
+          aws ecs describe-services \
+            --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
+            --services ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
+            --query 'services[0].events[:5]' \
+            --output table
 
       - name: Deployment completed
         run: |
