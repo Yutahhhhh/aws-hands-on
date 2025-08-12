@@ -53,7 +53,7 @@ jobs:
     # needs: test
     runs-on: ubuntu-latest
     outputs:
-      image-uri: ${{ steps.meta.outputs.tags }}
+      image-uri: ${{ steps.set-image.outputs.uri }}
       environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
@@ -95,6 +95,7 @@ jobs:
             type=ref,event=branch
 
       - name: Build and push Docker image
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: backend
@@ -103,6 +104,12 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
           platforms: linux/amd64
+
+      - name: Set image URI for output
+        id: set-image
+        run: |
+          IMAGE_URI=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          echo "uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
 
   deploy:
@@ -124,19 +131,13 @@ jobs:
             --task-definition ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app \
             --query taskDefinition > task-definition.json
 
-      - name: Extract image URI
-        id: extract-image
-        run: |
-          IMAGE_URI=$(echo "${{ needs.build-and-push.outputs.image-uri }}" | head -n1)
-          echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
-
       - name: Update task definition
         id: task-def
         uses: aws-actions/amazon-ecs-render-task-definition@v1
         with:
           task-definition: task-definition.json
           container-name: ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app
-          image: ${{ steps.extract-image.outputs.image-uri }}
+          image: ${{ needs.build-and-push.outputs.image-uri }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
