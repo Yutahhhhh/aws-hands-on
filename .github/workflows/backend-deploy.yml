@@ -97,8 +97,11 @@ jobs:
       - name: Extract single image URI
         id: image
         run: |
+          echo "All tags:"
+          echo "${{ steps.meta.outputs.tags }}"
           # 最初のタグを取得（通常はsha形式のタグ）
           IMAGE_URI=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
+          echo "Selected IMAGE_URI: ${IMAGE_URI}"
           echo "uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
       - name: Build and push Docker image
@@ -129,6 +132,12 @@ jobs:
           aws ecs describe-task-definition \
             --task-definition ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app \
             --query taskDefinition > task-definition.json
+
+      - name: Debug image URI
+        run: |
+          echo "Image URI from build job: ${{ needs.build-and-push.outputs.image-uri }}"
+          echo "Environment: ${{ needs.build-and-push.outputs.environment }}"
+          echo "Container name: ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app"
 
       - name: Update task definition
         id: task-def
