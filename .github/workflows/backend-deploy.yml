@@ -53,7 +53,7 @@ jobs:
     # needs: test
     runs-on: ubuntu-latest
     outputs:
-      image-uri: ${{ steps.image.outputs.uri }}
+      image-uri: ${{ steps.meta.outputs.tags }}
       environment: ${{ steps.set-env.outputs.environment }}
     steps:
       - uses: actions/checkout@v4
@@ -104,15 +104,6 @@ jobs:
           cache-to: type=gha,mode=max
           platforms: linux/amd64
 
-      - name: Extract single image URI
-        id: image
-        run: |
-          echo "All tags:"
-          echo "${{ steps.meta.outputs.tags }}"
-          # 最初のタグを取得（通常はsha形式のタグ）
-          IMAGE_URI=$(echo "${{ steps.meta.outputs.tags }}" | head -n1)
-          echo "Selected IMAGE_URI: ${IMAGE_URI}"
-          echo "uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
   deploy:
     needs: build-and-push
@@ -133,11 +124,11 @@ jobs:
             --task-definition ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app \
             --query taskDefinition > task-definition.json
 
-      - name: Debug image URI
+      - name: Extract image URI
+        id: extract-image
         run: |
-          echo "Image URI from build job: ${{ needs.build-and-push.outputs.image-uri }}"
-          echo "Environment: ${{ needs.build-and-push.outputs.environment }}"
-          echo "Container name: ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app"
+          IMAGE_URI=$(echo "${{ needs.build-and-push.outputs.image-uri }}" | head -n1)
+          echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
 
       - name: Update task definition
         id: task-def
@@ -145,7 +136,7 @@ jobs:
         with:
           task-definition: task-definition.json
           container-name: ${{ env.PROJECT_NAME }}-${{ needs.build-and-push.outputs.environment }}-app
-          image: ${{ needs.build-and-push.outputs.image-uri }}
+          image: ${{ steps.extract-image.outputs.image-uri }}
 
       - name: Deploy to ECS
         uses: aws-actions/amazon-ecs-deploy-task-definition@v1
