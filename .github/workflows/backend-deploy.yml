@@ -1,0 +1,157 @@
+# .github/workflows/backend-deploy.yml
+name: Backend Deploy
+
+on:
+  push:
+    branches:
+      - develop
+      - staging
+      - main
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-deploy.yml'
+  workflow_dispatch:
+
+env:
+  AWS_REGION: ap-northeast-1
+  PROJECT_NAME: ${{ vars.PROJECT_NAME }}
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  # Step 1: 環境を判定
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      environment: ${{ steps.set-env.outputs.environment }}
+    steps:
+      - name: Set environment based on branch
+        id: set-env
+        run: |
+          if [[ "${{ github.ref_name }}" == "main" ]]; then
+            echo "environment=prod" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "staging" ]]; then
+            echo "environment=stg" >> $GITHUB_OUTPUT
+          elif [[ "${{ github.ref_name }}" == "develop" ]]; then
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+          fi
+          echo "Set environment to: $(grep environment $GITHUB_OUTPUT | cut -d'=' -f2)"
+
+  # Step 2: Dockerイメージのビルドとプッシュ
+  build-and-push:
+    needs: setup
+    runs-on: ubuntu-latest
+    outputs:
+      image-tag: ${{ github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-github-actions
+          role-session-name: github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build, tag, and push image to Amazon ECR
+        id: build-image
+        env:
+          ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
+          ECR_REPOSITORY: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app
+          IMAGE_TAG: ${{ github.sha }}
+        run: |
+          # イメージURIを構築
+          IMAGE_URI="${ECR_REGISTRY}/${ECR_REPOSITORY}:${IMAGE_TAG}"
+          echo "Building image: ${IMAGE_URI}"
+          
+          # Dockerイメージをビルド
+          cd backend
+          docker build -t ${IMAGE_URI} .
+          
+          # ECRにプッシュ
+          docker push ${IMAGE_URI}
+          
+          # アウトプットに設定
+          echo "image=${IMAGE_URI}" >> $GITHUB_OUTPUT
+          
+          # 確認のため表示
+          echo "Successfully built and pushed: ${IMAGE_URI}"
+
+  # Step 3: ECSへのデプロイ
+  deploy:
+    needs: [setup, build-and-push]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Debug - Check received values
+        run: |
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo "Image Tag: ${{ needs.build-and-push.outputs.image-tag }}"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ secrets.AWS_ACCOUNT_ID }}:role/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-github-actions
+          role-session-name: github-actions
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Image URI
+        id: build-uri
+        run: |
+          IMAGE_URI="${{ steps.login-ecr.outputs.registry }}/${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app:${{ needs.build-and-push.outputs.image-tag }}"
+          echo "Built Image URI: ${IMAGE_URI}"
+          echo "image-uri=${IMAGE_URI}" >> $GITHUB_OUTPUT
+
+      - name: Get current task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app \
+            --query taskDefinition > task-definition.json
+          
+          echo "Task definition retrieved:"
+          cat task-definition.json | jq '.containerDefinitions[0].name'
+
+      - name: Update task definition
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app
+          image: ${{ steps.build-uri.outputs.image-uri }}
+
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service
+          cluster: ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster
+          wait-for-service-stability: false
+
+      - name: Verify Deployment
+        run: |
+          echo "ECS service updated successfully"
+          aws ecs describe-services \
+            --cluster ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-cluster \
+            --services ${{ env.PROJECT_NAME }}-${{ needs.setup.outputs.environment }}-app-service \
+            --query 'services[0].{Status:status,TaskDefinition:taskDefinition}' \
+            --output table
+
+      - name: Deployment completed
+        run: |
+          echo "✅ Deployment completed successfully!"
+          echo "Environment: ${{ needs.setup.outputs.environment }}"
+          echo "Image: ${{ steps.build-uri.outputs.image-uri }}"

@@ -212,3 +212,7 @@ chmod +x scripts/deploy-frontend.sh
 - S3バケットは静的ウェブサイトホスティングが有効になっている必要があります
 
 ※AIに書かせています
+
+## GitHub Actions設定
+
+GitHub Actionsでサードパーティアクションを使用するため、リポジトリ設定で全てのアクションが許可されています。
