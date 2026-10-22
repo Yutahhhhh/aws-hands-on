@@ -1,0 +1,29 @@
+name: Verify Node.js runtime
+
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        directory: [backend, frontend]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: ${{ matrix.directory }}/pnpm-lock.yaml
+      - name: Install dependencies
+        run: pnpm --dir "${{ matrix.directory }}" install --frozen-lockfile
+      - name: Build
+        run: pnpm --dir "${{ matrix.directory }}" run build

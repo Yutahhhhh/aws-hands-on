@@ -1,8 +1,8 @@
-FROM node:20-alpine AS builder
+FROM node:22.23.4-alpine AS builder
 
 WORKDIR /app
 
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10
 
 # 依存関係のインストール
 COPY package.json pnpm-lock.yaml ./
@@ -13,7 +13,7 @@ COPY drizzle.config.ts ./
 COPY src ./src
 RUN pnpm build
 
-FROM node:20-alpine
+FROM node:22.23.4-alpine
 
 WORKDIR /app
 
@@ -25,7 +25,7 @@ ENV ALLOWED_ORIGINS=${ALLOWED_ORIGINS}
 RUN apk add --no-cache postgresql-client curl
 
 # pnpmをインストール
-RUN npm install -g pnpm
+RUN npm install -g pnpm@10
 
 COPY package.json pnpm-lock.yaml ./
 RUN pnpm install --prod && pnpm store prune

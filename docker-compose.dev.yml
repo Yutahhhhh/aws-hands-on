@@ -24,14 +24,14 @@ services:
     working_dir: /workspace/backend
 
   frontend:
-    image: node:20-alpine
+    image: node:22.23.4-alpine
     ports:
       - "5173:5173"
     volumes:
       - .:/workspace:cached
       - frontend_node_modules:/workspace/frontend/node_modules
     working_dir: /workspace/frontend
-    command: sh -c "npm install -g pnpm && tail -f /dev/null"
+    command: sh -c "npm install -g pnpm@10 && tail -f /dev/null"
     environment:
       - NODE_ENV=development
       - VITE_API_URL=http://localhost:3000
